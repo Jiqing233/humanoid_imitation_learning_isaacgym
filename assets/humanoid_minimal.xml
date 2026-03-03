@@ -1,0 +1,87 @@
+<mujoco model="humanoid">
+  <worldbody>
+    <body name="pelvis" pos="0 0 1">
+      <freejoint name="root"/>
+      <geom name="pelvis" type="sphere" pos="0 0 0.07" size="0.09" density="2226"/>
+      <geom name="upper_waist" type="sphere" pos="0 0 0.205" size="0.07" density="2226"/>
+
+      <body name="torso" pos="0 0 0.236151">
+        <joint name="abdomen_x" type="hinge" pos="0 0 0" axis="1 0 0" range="-60 60"/>
+        <joint name="abdomen_y" type="hinge" pos="0 0 0" axis="0 1 0" range="-60 90"/>
+        <joint name="abdomen_z" type="hinge" pos="0 0 0" axis="0 0 1" range="-50 50"/>
+        <geom name="torso" type="sphere" pos="0 0 0.12" size="0.11" density="1794"/>
+        <geom name="right_clavicle" fromto="-0.0060125 -0.0457775 0.2287955 -0.016835 -0.128177 0.2376182" size="0.045" density="1100"/>
+        <geom name="left_clavicle" fromto="-0.0060125 0.0457775 0.2287955 -0.016835 0.128177 0.2376182" size="0.045" density="1100"/>
+
+        <body name="head" pos="0 0 0.223894">
+          <joint name="neck_x" type="hinge" axis="1 0 0" range="-50 50"/>
+          <joint name="neck_y" type="hinge" axis="0 1 0" range="-40 60"/>
+          <joint name="neck_z" type="hinge" axis="0 0 1" range="-45 45"/>
+          <geom name="head" type="sphere" pos="0 0 0.175" size="0.095" density="1081"/>
+        </body>
+
+        <body name="right_upper_arm" pos="-0.02405 -0.18311 0.24350">
+          <joint name="right_shoulder_x" type="hinge" axis="1 0 0" range="-180 45"/>
+          <joint name="right_shoulder_y" type="hinge" axis="0 1 0" range="-180 60"/>
+          <joint name="right_shoulder_z" type="hinge" axis="0 0 1" range="-90 90"/>
+          <geom name="right_upper_arm" fromto="0 0 -0.05 0 0 -0.23" size="0.045" density="982"/>
+          <body name="right_lower_arm" pos="0 0 -0.274788">
+            <joint name="right_elbow" type="hinge" axis="0 1 0" range="-160 0"/>
+            <geom name="right_lower_arm" fromto="0 0 -0.0525 0 0 -0.1875" size="0.04" density="1056"/>
+            <body name="right_hand" pos="0 0 -0.258947">
+              <geom name="right_hand" type="sphere" size="0.04" density="1865"/>
+            </body>
+          </body>
+        </body>
+
+        <body name="left_upper_arm" pos="-0.02405 0.18311 0.24350">
+          <joint name="left_shoulder_x" type="hinge" axis="1 0 0" range="-45 180"/>
+          <joint name="left_shoulder_y" type="hinge" axis="0 1 0" range="-180 60"/>
+          <joint name="left_shoulder_z" type="hinge" axis="0 0 1" range="-90 90"/>
+          <geom name="left_upper_arm" fromto="0 0 -0.05 0 0 -0.23" size="0.045" density="982"/>
+          <body name="left_lower_arm" pos="0 0 -0.274788">
+            <joint name="left_elbow" type="hinge" axis="0 1 0" range="-160 0"/>
+            <geom name="left_lower_arm" fromto="0 0 -0.0525 0 0 -0.1875" size="0.04" density="1056"/>
+            <body name="left_hand" pos="0 0 -0.258947">
+              <geom name="left_hand" type="sphere" size="0.04" density="1865"/>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <body name="right_thigh" pos="0 -0.084887 0">
+        <joint name="right_hip_x" type="hinge" axis="1 0 0" range="-60 15"/>
+        <joint name="right_hip_y" type="hinge" axis="0 1 0" range="-140 60"/>
+        <joint name="right_hip_z" type="hinge" axis="0 0 1" range="-60 35"/>
+        <geom name="right_thigh" fromto="0 0 -0.06 0 0 -0.36" size="0.055" density="1269"/>
+        <body name="right_shin" pos="0 0 -0.421546">
+          <joint name="right_knee" type="hinge" pos="0 0 0" axis="0 1 0" range="0 160"/>
+          <geom name="right_shin" fromto="0 0 -0.045 0 0 -0.355" size="0.05" density="1014"/>
+          <body name="right_foot" pos="0 0 -0.409870">
+            <joint name="right_ankle_x" type="hinge" pos="0 0 0" axis="1 0 0" range="-30 30"/>
+            <joint name="right_ankle_y" type="hinge" pos="0 0 0" axis="0 1 0" range="-55 55"/>
+            <joint name="right_ankle_z" type="hinge" pos="0 0 0" axis="0 0 1" range="-40 40"/>
+            <geom name="right_foot" type="box" pos="0.045 0 -0.0225" size="0.0885 0.045 0.0275" density="1141"/>
+          </body>
+        </body>
+      </body>
+
+      <body name="left_thigh" pos="0 0.084887 0">
+        <joint name="left_hip_x" type="hinge" axis="1 0 0" range="-15 60"/>
+        <joint name="left_hip_y" type="hinge" axis="0 1 0" range="-140 60"/>
+        <joint name="left_hip_z" type="hinge" axis="0 0 1" range="-35 60"/>
+        <geom name="left_thigh" fromto="0 0 -0.06 0 0 -0.36" size="0.055" density="1269"/>
+        <body name="left_shin" pos="0 0 -0.421546">
+          <joint name="left_knee" type="hinge" pos="0 0 0" axis="0 1 0" range="0 160"/>
+          <geom name="left_shin" fromto="0 0 -0.045 0 0 -0.355" size="0.05" density="1014"/>
+          <body name="left_foot" pos="0 0 -0.409870">
+            <joint name="left_ankle_x" type="hinge" pos="0 0 0" axis="1 0 0" range="-30 30"/>
+            <joint name="left_ankle_y" type="hinge" pos="0 0 0" axis="0 1 0" range="-55 55"/>
+            <joint name="left_ankle_z" type="hinge" pos="0 0 0" axis="0 0 1" range="-40 40"/>
+            <geom name="left_foot" type="box" pos="0.045 0 -0.0225" size="0.0885 0.045 0.0275" density="1141"/>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
