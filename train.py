@@ -4,12 +4,12 @@ import torch
 
 device = "cuda"
 
-env = HumanoidEnv(num_envs=1024, device=device, enable_viewer=True)
+# Debug with a small number first
+env = HumanoidEnv(num_envs=4, device=device, enable_viewer=True)
 print("Environment Observation:", env.obs_dim)
 
 model = ActorCritic(env.obs_dim, env.act_dim).to(device)
 ppo = PPO(model=model, device=device)
-optimizer = torch.optim.Adam(model.parameters(), lr=3e-4)
 
 num_steps = 256
 
@@ -21,28 +21,26 @@ buffer = RolloutBuffer(
     device
 )
 
-#ppo = PPO(
-#    obs_dim=env.obs_dim,
-#    act_dim=env.act_dim,
-#    device=device
-#)
-
 obs = env.compute_observations()
 print("OBS:", obs.shape)
 
 for iteration in range(10000):
-
     buffer.step = 0
 
     for step in range(num_steps):
-
         with torch.no_grad():
             action, logprob = model.act(obs)
             value = model.critic(obs).squeeze(-1)
 
         next_obs, reward, done = env.step(action)
-
         buffer.add(obs, action, logprob, reward, done, value)
+
+        if step == 0:
+            print(
+                f"Iter {iteration} | "
+                f"action mean {action.mean().item():.4f} | "
+                f"action std {action.std().item():.4f}"
+            )
 
         obs = next_obs
         env.render()
@@ -50,9 +48,19 @@ for iteration in range(10000):
     with torch.no_grad():
         last_value = model.critic(obs).squeeze(-1)
 
-    buffer.compute_returns(last_value)
+    before_weight = model.actor[0].weight[0, 0].item()
 
+    buffer.compute_returns(last_value)
     ppo.update(buffer)
 
-    print("Iteration:", iteration,
-          "Reward:", buffer.rewards.mean().item())
+    after_weight = model.actor[0].weight[0, 0].item()
+
+    print(
+        f"Iteration: {iteration} | "
+        f"Reward: {buffer.rewards.mean().item():.4f} | "
+        f"Done frac: {buffer.dones.float().mean().item():.4f} | "
+        f"Actor w[0,0] before/after: {before_weight:.6f} -> {after_weight:.6f}"
+    )
+
+    if iteration % 100 == 0:
+        torch.save(model.state_dict(), f"checkpoint_{iteration}.pt")
