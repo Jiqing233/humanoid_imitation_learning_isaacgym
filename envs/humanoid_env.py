@@ -160,7 +160,7 @@ class HumanoidEnv:
     def _load_motion(self):
         project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         motion_path = os.path.join(
-            project_dir, "data", "martial_arts", "amp_humanoid_walk.npy"
+            project_dir, "data", "martial_arts", "Garren_Knifehand_amp.npy"
         )
 
         # keep raw body-space refs for current obs/reward
@@ -193,15 +193,14 @@ class HumanoidEnv:
             self.num_envs, device=self.device, dtype=torch.long
         )
 
+        # Instead of using motion frame, use motion time
+        self.motion_times = torch.zeros(self.num_envs, device=self.device, dtype=torch.float32)
+        self.motion_duration = float(self.motion_lib._motion_lengths[0].item())
+        self.motion_fps = float(self.motion_lib._motion_fps[0].item())
+
         self.root_pos_offset = (
             self.initial_root_states[:, 0:3] - self.root_pos_ref[0].unsqueeze(0)
         )
-
-        print("Motion frames:", self.motion_length)
-        print("root_pos_ref:", self.root_pos_ref.shape)
-        print("rot_ref:", self.rot_ref.shape)
-        print("lin_vel_ref:", self.lin_vel_ref.shape)
-        print("ang_vel_ref:", self.ang_vel_ref.shape)
 
     def render(self):
         if self.viewer is None:
@@ -228,6 +227,7 @@ class HumanoidEnv:
         )
 
         self.motion_phase[env_ids] = frame_ids
+        self.motion_times[env_ids] = frame_ids.float() / self.motion_fps
         self.progress_buf[env_ids] = 0
 
         # MotionLib expects CPU motion_ids / motion_times
@@ -300,8 +300,17 @@ class HumanoidEnv:
             gymtorch.unwrap_tensor(self.pd_targets)
         )
 
-        self.motion_phase += 1
-        self.motion_phase %= self.motion_length
+        #self.motion_phase += 1
+        #self.motion_phase %= self.motion_length
+        sim_dt = self.gym.get_sim_params(self.sim).dt
+        self.motion_times += sim_dt
+        self.motion_times %= self.motion_duration
+
+        self.motion_phase = torch.clamp(
+            (self.motion_times * self.motion_fps).long(),
+            0,
+            self.motion_length - 1
+        )
 
         self.gym.simulate(self.sim)
         self.gym.fetch_results(self.sim, True)

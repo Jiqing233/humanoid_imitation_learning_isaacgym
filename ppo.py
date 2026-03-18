@@ -2,7 +2,6 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 
-
 class ActorCritic(nn.Module):
     def __init__(self, obs_dim, act_dim):
         super().__init__()
@@ -52,7 +51,6 @@ class ActorCritic(nn.Module):
 
         return log_prob, entropy, value
 
-
 class RolloutBuffer:
     def __init__(self, num_steps, num_envs, obs_dim, act_dim, device):
         self.obs = torch.zeros(num_steps, num_envs, obs_dim, device=device)
@@ -89,7 +87,6 @@ class RolloutBuffer:
             self.advantages[t] = last_adv
 
         self.returns = self.advantages + self.values
-
 
 class PPO:
     def __init__(

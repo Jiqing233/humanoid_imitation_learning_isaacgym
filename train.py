@@ -5,7 +5,7 @@ import torch
 device = "cuda"
 
 # Debug with a small number first
-env = HumanoidEnv(num_envs=4, device=device, enable_viewer=True)
+env = HumanoidEnv(num_envs=1024, device=device, enable_viewer=True)
 print("Environment Observation:", env.obs_dim)
 
 model = ActorCritic(env.obs_dim, env.act_dim).to(device)
