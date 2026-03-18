@@ -3,6 +3,8 @@ import numpy as np
 from isaacgym import gymapi, gymtorch, gymutil
 import torch
 
+from motion.motion_lib import MotionLib
+from motion.motion_lib_wrapper import MotionLibWrapper
 
 class HumanoidEnv:
     def __init__(self, num_envs=1024, device="cuda", enable_viewer=False):
@@ -80,7 +82,8 @@ class HumanoidEnv:
 
         asset_options = gymapi.AssetOptions()
         asset_options.fix_base_link = False
-        asset_options.default_dof_drive_mode = gymapi.DOF_MODE_EFFORT
+        #asset_options.default_dof_drive_mode = gymapi.DOF_MODE_EFFORT
+        asset_options.default_dof_drive_mode = gymapi.DOF_MODE_POS
         asset_options.replace_cylinder_with_capsule = True
 
         humanoid_asset = self.gym.load_asset(
@@ -97,9 +100,13 @@ class HumanoidEnv:
 
         # Explicitly configure DOF properties
         dof_props = self.gym.get_asset_dof_properties(humanoid_asset)
-        dof_props["driveMode"].fill(gymapi.DOF_MODE_EFFORT)
-        dof_props["stiffness"].fill(0.0)
-        dof_props["damping"].fill(0.0)
+        #dof_props["driveMode"].fill(gymapi.DOF_MODE_EFFORT)
+        #dof_props["stiffness"].fill(0.0)
+        #dof_props["damping"].fill(0.0)
+        #dof_props["effort"].fill(300.0)
+        dof_props["driveMode"].fill(gymapi.DOF_MODE_POS)
+        dof_props["stiffness"].fill(400.0)
+        dof_props["damping"].fill(40.0)
         dof_props["effort"].fill(300.0)
 
         print("DOF effort limits:", dof_props["effort"][:10])
@@ -144,12 +151,19 @@ class HumanoidEnv:
         self.initial_root_states = self.root_states.clone()
         self.initial_dof_states = self.dof_states.clone()
 
+        self.pd_targets = torch.zeros(
+            (self.num_envs, self.num_dofs),
+            device=self.device,
+            dtype=torch.float32
+        )
+
     def _load_motion(self):
         project_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
         motion_path = os.path.join(
             project_dir, "data", "martial_arts", "amp_humanoid_walk.npy"
         )
 
+        # keep raw body-space refs for current obs/reward
         motion_data = np.load(motion_path, allow_pickle=True)
         motion_dict = motion_data.item()
 
@@ -163,51 +177,31 @@ class HumanoidEnv:
         self.lin_vel_ref = torch.tensor(lin_vel, dtype=torch.float32, device=self.device)
         self.ang_vel_ref = torch.tensor(ang_vel, dtype=torch.float32, device=self.device)
 
+        # MotionLib for DOF-space reference
+        self.key_body_ids = torch.tensor([5, 8, 11, 14], dtype=torch.long)
+
+        self.motion_lib = MotionLibWrapper(
+            motion_file=motion_path,
+            num_dofs=self.num_dofs,
+            key_body_ids=self.key_body_ids,
+            device=self.device
+        )
+
         self.motion_length = self.root_pos_ref.shape[0]
 
-        # Start all envs from phase 0
         self.motion_phase = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.long
         )
 
-        # Align reference root trajectory to each env spawn
         self.root_pos_offset = (
             self.initial_root_states[:, 0:3] - self.root_pos_ref[0].unsqueeze(0)
         )
-
-        # Optional DOF refs if present
-        self.dof_pos_ref = None
-        self.dof_vel_ref = None
-
-        possible_dof_pos_keys = ["dof_pos", "joint_pose", "pose", "local_rotation"]
-        possible_dof_vel_keys = ["dof_vel", "joint_velocity", "velocity", "local_velocity"]
-
-        for k in possible_dof_pos_keys:
-            if k in motion_dict:
-                self.dof_pos_ref = torch.tensor(
-                    motion_dict[k]["arr"], dtype=torch.float32, device=self.device
-                )
-                print("Loaded DOF pose key:", k, self.dof_pos_ref.shape)
-                break
-
-        for k in possible_dof_vel_keys:
-            if k in motion_dict:
-                self.dof_vel_ref = torch.tensor(
-                    motion_dict[k]["arr"], dtype=torch.float32, device=self.device
-                )
-                print("Loaded DOF vel key:", k, self.dof_vel_ref.shape)
-                break
 
         print("Motion frames:", self.motion_length)
         print("root_pos_ref:", self.root_pos_ref.shape)
         print("rot_ref:", self.rot_ref.shape)
         print("lin_vel_ref:", self.lin_vel_ref.shape)
         print("ang_vel_ref:", self.ang_vel_ref.shape)
-
-        if self.dof_pos_ref is None:
-            print("WARNING: DOF pose reference not found in motion file.")
-        if self.dof_vel_ref is None:
-            print("WARNING: DOF velocity reference not found in motion file.")
 
     def render(self):
         if self.viewer is None:
@@ -227,7 +221,6 @@ class HumanoidEnv:
         if env_ids.numel() == 0:
             return self.compute_observations()
 
-        # Sample an initialization frame from the first few clip frames
         max_init_frame = min(10, self.motion_length)
         frame_ids = torch.randint(
             0, max_init_frame, (env_ids.numel(),),
@@ -237,28 +230,27 @@ class HumanoidEnv:
         self.motion_phase[env_ids] = frame_ids
         self.progress_buf[env_ids] = 0
 
-        # Reference root state
-        ref_root_pos = self.root_pos_ref[frame_ids]               # [M, 3]
-        ref_root_rot = self.rot_ref[frame_ids, 0, :]             # [M, 4]
-        ref_root_lin_vel = self.lin_vel_ref[frame_ids, 0, :]     # [M, 3]
-        ref_root_ang_vel = self.ang_vel_ref[frame_ids, 0, :]     # [M, 3]
+        # MotionLib expects CPU motion_ids / motion_times
+        motion_ids = torch.zeros(env_ids.numel(), dtype=torch.long)
+        motion_times = frame_ids.float().cpu() / self.motion_lib._motion_fps[0]
 
-        aligned_root_pos = ref_root_pos + self.root_pos_offset[env_ids]
+        root_pos, root_rot, dof_pos, root_vel, root_ang_vel, dof_vel, key_pos = \
+            self.motion_lib.get_motion_state(motion_ids, motion_times)
+
+        # align root trajectory to env spawn
+        aligned_root_pos = root_pos + self.root_pos_offset[env_ids]
 
         self.root_states[env_ids, 0:3] = aligned_root_pos
-        self.root_states[env_ids, 3:7] = ref_root_rot
-        self.root_states[env_ids, 7:10] = ref_root_lin_vel
-        self.root_states[env_ids, 10:13] = ref_root_ang_vel
+        self.root_states[env_ids, 3:7] = root_rot
+        self.root_states[env_ids, 7:10] = root_vel
+        self.root_states[env_ids, 10:13] = root_ang_vel
 
-        # DOF state
         dof_view = self.dof_states.view(self.num_envs, self.num_dofs, 2)
+        dof_view[env_ids, :, 0] = dof_pos
+        dof_view[env_ids, :, 1] = dof_vel
 
-        if self.dof_pos_ref is not None and self.dof_vel_ref is not None:
-            dof_view[env_ids, :, 0] = self.dof_pos_ref[frame_ids]
-            dof_view[env_ids, :, 1] = self.dof_vel_ref[frame_ids]
-        else:
-            init_dof_view = self.initial_dof_states.view(self.num_envs, self.num_dofs, 2)
-            dof_view[env_ids] = init_dof_view[env_ids]
+        # initialize PD targets to the same reference pose
+        self.pd_targets[env_ids] = dof_pos
 
         actor_indices = env_ids.to(dtype=torch.int32)
 
@@ -276,6 +268,11 @@ class HumanoidEnv:
             actor_indices.numel()
         )
 
+        self.gym.set_dof_position_target_tensor(
+            self.sim,
+            gymtorch.unwrap_tensor(self.pd_targets)
+        )
+
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_dof_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
@@ -286,10 +283,21 @@ class HumanoidEnv:
         self.progress_buf += 1
 
         clipped_actions = torch.clamp(actions, -1.0, 1.0)
-        torque = (5.0 * clipped_actions).contiguous().view(-1)
 
-        self.gym.set_dof_actuation_force_tensor(
-            self.sim, gymtorch.unwrap_tensor(torque)
+        # reference dof pose from current motion phase
+        motion_ids = torch.zeros(self.num_envs, dtype=torch.long)
+        motion_times = self.motion_phase.float().cpu() / self.motion_lib._motion_fps[0]
+
+        root_pos_ref, root_rot_ref, dof_pos_ref, root_vel_ref, root_ang_vel_ref, dof_vel_ref, key_pos_ref = \
+            self.motion_lib.get_motion_state(motion_ids, motion_times)
+
+        # residual PD target around reference pose
+        action_scale = 0.25
+        self.pd_targets[:] = dof_pos_ref + action_scale * clipped_actions
+
+        self.gym.set_dof_position_target_tensor(
+            self.sim,
+            gymtorch.unwrap_tensor(self.pd_targets)
         )
 
         self.motion_phase += 1
@@ -342,25 +350,49 @@ class HumanoidEnv:
         body_rot = rb[:, :, 3:7]
         body_lin_vel = rb[:, :, 7:10]
 
+        # current dof state
+        dof_view = self.dof_states.view(self.num_envs, self.num_dofs, 2)
+        dof_pos = dof_view[:, :, 0]
+        dof_vel = dof_view[:, :, 1]
+
+        # reference body-space motion from cached tensors
         ref_rot = self.rot_ref[self.motion_phase]
         ref_lin_vel = self.lin_vel_ref[self.motion_phase]
 
-        # Rotation similarity
+        # reference dof-space motion from MotionLib
+        motion_ids = torch.zeros(self.num_envs, dtype=torch.long)
+        motion_times = self.motion_phase.float().cpu() / self.motion_lib._motion_fps[0]
+
+        _, _, dof_pos_ref, _, _, dof_vel_ref, _ = self.motion_lib.get_motion_state(
+            motion_ids, motion_times
+        )
+
+        # 1. body rotation similarity
         rot_dot = torch.sum(body_rot * ref_rot, dim=-1).abs()
         rot_reward = rot_dot.mean(dim=1)
 
-        # Velocity tracking
+        # 2. body linear velocity tracking
         lin_vel_error = torch.mean(
             torch.sum((body_lin_vel - ref_lin_vel) ** 2, dim=-1), dim=1
         )
         lin_vel_reward = torch.exp(-0.1 * lin_vel_error)
 
-        # Alive/upright reward
+        # 3. dof position tracking
+        dof_pos_err = torch.mean((dof_pos - dof_pos_ref) ** 2, dim=1)
+        dof_pos_reward = torch.exp(-2.0 * dof_pos_err)
+
+        # 4. dof velocity tracking
+        dof_vel_err = torch.mean((dof_vel - dof_vel_ref) ** 2, dim=1)
+        dof_vel_reward = torch.exp(-0.1 * dof_vel_err)
+
+        # 5. alive / upright reward
         alive_reward = (self.root_states[:, 2] > 0.75).float()
 
         reward = (
-            0.75 * rot_reward +
-            0.15 * lin_vel_reward +
+            0.35 * rot_reward +
+            0.10 * lin_vel_reward +
+            0.35 * dof_pos_reward +
+            0.10 * dof_vel_reward +
             0.10 * alive_reward
         )
 
