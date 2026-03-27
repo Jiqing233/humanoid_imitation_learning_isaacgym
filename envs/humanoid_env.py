@@ -94,9 +94,14 @@ class HumanoidEnv:
 
         self.num_dofs = self.gym.get_asset_dof_count(humanoid_asset)
         num_bodies = self.gym.get_asset_rigid_body_count(humanoid_asset)
+        self.num_bodies = num_bodies
+        self.body_names = self.gym.get_asset_rigid_body_names(humanoid_asset)
+        self.dof_names = self.gym.get_asset_dof_names(humanoid_asset)
 
         print("DOFs:", self.num_dofs)
         print("Bodies:", num_bodies)
+        print("Body names:", self.body_names)
+        print("DOF names:", self.dof_names)
 
         # Explicitly configure DOF properties
         dof_props = self.gym.get_asset_dof_properties(humanoid_asset)
@@ -286,7 +291,7 @@ class HumanoidEnv:
 
         # reference dof pose from current motion phase
         motion_ids = torch.zeros(self.num_envs, dtype=torch.long)
-        motion_times = self.motion_phase.float().cpu() / self.motion_lib._motion_fps[0]
+        motion_times = self.motion_phase.float().cpu()
 
         root_pos_ref, root_rot_ref, dof_pos_ref, root_vel_ref, root_ang_vel_ref, dof_vel_ref, key_pos_ref = \
             self.motion_lib.get_motion_state(motion_ids, motion_times)
@@ -370,7 +375,7 @@ class HumanoidEnv:
 
         # reference dof-space motion from MotionLib
         motion_ids = torch.zeros(self.num_envs, dtype=torch.long)
-        motion_times = self.motion_phase.float().cpu() / self.motion_lib._motion_fps[0]
+        motion_times = self.motion_phase.float().cpu()
 
         _, _, dof_pos_ref, _, _, dof_vel_ref, _ = self.motion_lib.get_motion_state(
             motion_ids, motion_times

@@ -1,3 +1,4 @@
+import os
 from envs.humanoid_env import HumanoidEnv
 from ppo import ActorCritic, RolloutBuffer, PPO
 import torch
@@ -62,5 +63,9 @@ for iteration in range(10000):
         f"Actor w[0,0] before/after: {before_weight:.6f} -> {after_weight:.6f}"
     )
 
+    save_dir = "exports/checkpoints"
+    os.makedirs(save_dir, exist_ok=True)
     if iteration % 100 == 0:
-        torch.save(model.state_dict(), f"checkpoint_{iteration}.pt")
+        ckpt_path = os.path.join(save_dir, f"checkpoint_{iteration}.pt")
+        torch.save(model.state_dict(), ckpt_path)
+        print(f"Saved checkpoint to {ckpt_path}")
