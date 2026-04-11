@@ -1,0 +1,57 @@
+{
+  "source_clip": "exports/motion_data/source_clip.json",
+  "target_skeleton": "unity/target_skeleton_main.json",
+  "output_clip": "exports/motion_data/transferred_source_clip.json",
+
+  "root_scale": 1.0,
+  "root_offset": [0.0, 0.0, 0.0],
+
+  "direct_map": {
+    "pelvis": "Hips",
+    "head": "Head",
+    "right_thigh": "Right Thigh",
+    "right_shin": "Right Leg",
+    "right_foot": "Right Foot",
+    "left_thigh": "Left Thigh",
+    "left_shin": "Left Leg",
+    "left_foot": "Left Foot",
+    "right_lower_arm": "Right Forearm",
+    "right_hand": "Right Hand",
+    "left_lower_arm": "Left Forearm",
+    "left_hand": "Left Hand"
+  },
+
+  "chain_map": {
+    "torso": ["Spine 1", "Spine 2", "Spine 3"],
+    "right_upper_arm": ["Right Shoulder", "Right Arm"],
+    "left_upper_arm": ["Left Shoulder", "Left Arm"]
+  },
+
+  "distribution_weights": {
+    "torso": [0.2, 0.35, 0.45],
+    "right_upper_arm": [0.25, 0.75],
+    "left_upper_arm": [0.25, 0.75]
+  },
+
+  "bone_corrections_xyzw": {
+    "Hips": [0.0, 0.0, 0.0, 1.0],
+    "Spine 1": [0.0, 0.0, 0.0, 1.0],
+    "Spine 2": [0.0, 0.0, 0.0, 1.0],
+    "Spine 3": [0.0, 0.0, 0.0, 1.0],
+    "Right Shoulder": [0.0, 0.0, 0.0, 1.0],
+    "Right Arm": [0.0, 0.0, 0.0, 1.0],
+    "Right Forearm": [0.0, 0.0, 0.0, 1.0],
+    "Right Hand": [0.0, 0.0, 0.0, 1.0],
+    "Left Shoulder": [0.0, 0.0, 0.0, 1.0],
+    "Left Arm": [0.0, 0.0, 0.0, 1.0],
+    "Left Forearm": [0.0, 0.0, 0.0, 1.0],
+    "Left Hand": [0.0, 0.0, 0.0, 1.0],
+    "Head": [0.0, 0.0, 0.0, 1.0],
+    "Right Thigh": [0.0, 0.0, 0.0, 1.0],
+    "Right Leg": [0.0, 0.0, 0.0, 1.0],
+    "Right Foot": [0.0, 0.0, 0.0, 1.0],
+    "Left Thigh": [0.0, 0.0, 0.0, 1.0],
+    "Left Leg": [0.0, 0.0, 0.0, 1.0],
+    "Left Foot": [0.0, 0.0, 0.0, 1.0]
+  }
+}
