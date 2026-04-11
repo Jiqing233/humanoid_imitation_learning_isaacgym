@@ -15,22 +15,20 @@
     "left_thigh": "Left Thigh",
     "left_shin": "Left Leg",
     "left_foot": "Left Foot",
+    "right_upper_arm": "Right Arm",
     "right_lower_arm": "Right Forearm",
     "right_hand": "Right Hand",
+    "left_upper_arm": "Left Arm",
     "left_lower_arm": "Left Forearm",
     "left_hand": "Left Hand"
   },
 
   "chain_map": {
-    "torso": ["Spine 1", "Spine 2", "Spine 3"],
-    "right_upper_arm": ["Right Shoulder", "Right Arm"],
-    "left_upper_arm": ["Left Shoulder", "Left Arm"]
+    "torso": ["Spine 1", "Spine 2", "Spine 3"]
   },
 
   "distribution_weights": {
-    "torso": [0.2, 0.35, 0.45],
-    "right_upper_arm": [0.25, 0.75],
-    "left_upper_arm": [0.25, 0.75]
+    "torso": [0.2, 0.35, 0.45]
   },
 
   "bone_corrections_xyzw": {
