@@ -285,7 +285,7 @@ def retarget_frame(src_parents, src_bind_local, src_cur_local,
 
 def main():
     # --- Parse CLI ---
-    config_path = "configs/isaac_to_banana.json"
+    config_path = "configs/isaac_to_unity_Lee8.json"
     test_mode = "--test" in sys.argv
     for i, a in enumerate(sys.argv):
         if a == "--config" and i + 1 < len(sys.argv):

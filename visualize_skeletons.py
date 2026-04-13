@@ -340,7 +340,7 @@ window.addEventListener('resize', () => {
 
 def main():
     isaac_path = "exports/isaac_static_skeleton.json"
-    unity_path = "unity/target_skeleton_main.json"
+    unity_path = "unity/target_skeleton_Lee8.json"
     retarget_path = "exports/motion_data/retargeted_test_poses.json"
     output_html = "exports/skeleton_viewer.html"
 

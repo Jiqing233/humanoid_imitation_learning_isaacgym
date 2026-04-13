@@ -10,7 +10,7 @@ and outputs:
 
 Usage:
     conda run -n isaac_gym python convert_motion.py data/martial_arts/Garren_Knifehand_amp.npy
-    conda run -n isaac_gym python convert_motion.py data/martial_arts/Garren_Knifehand_amp.npy --config configs/isaac_to_banana.json
+    conda run -n isaac_gym python convert_motion.py data/martial_arts/Garren_Knifehand_amp.npy --config configs/isaac_to_unity_Lee8.json
 """
 import json
 import math
@@ -393,7 +393,7 @@ def main():
         sys.exit(1)
 
     motion_path = sys.argv[1]
-    config_path = "configs/isaac_to_banana.json"
+    config_path = "configs/isaac_to_unity_Lee8.json"
     for i, a in enumerate(sys.argv):
         if a == "--config" and i + 1 < len(sys.argv):
             config_path = sys.argv[i + 1]

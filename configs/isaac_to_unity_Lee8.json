@@ -1,0 +1,65 @@
+{
+  "source_clip": "exports/motion_data/source_clip.json",
+  "target_skeleton": "unity/target_skeleton_Lee8.json",
+  "output_clip": "exports/motion_data/transferred_source_clip_Lee8.json",
+
+  "root_scale": 1.0,
+  "root_offset": [0.0, 0.0, 0.0],
+
+  "direct_map": {
+    "pelvis": "Hips",
+    "head": "Head",
+
+    "right_thigh": "RightUpperLeg",
+    "right_shin": "RightLowerLeg",
+    "right_foot": "RightFoot",
+
+    "left_thigh": "LeftUpperLeg",
+    "left_shin": "LeftLowerLeg",
+    "left_foot": "LeftFoot",
+
+    "right_upper_arm": "RightUpperArm",
+    "right_lower_arm": "RightLowerArm",
+    "right_hand": "RightHand",
+
+    "left_upper_arm": "LeftUpperArm",
+    "left_lower_arm": "LeftLowerArm",
+    "left_hand": "LeftHand"
+  },
+
+  "chain_map": {
+    "torso": ["Spine", "Chest", "UpperChest"]
+  },
+
+  "distribution_weights": {
+    "torso": [0.2, 0.35, 0.45]
+  },
+
+  "bone_corrections_xyzw": {
+    "Hips": [0.0, 0.0, 0.0, 1.0],
+    "Spine": [0.0, 0.0, 0.0, 1.0],
+    "Chest": [0.0, 0.0, 0.0, 1.0],
+    "UpperChest": [0.0, 0.0, 0.0, 1.0],
+
+    "Neck": [0.0, 0.0, 0.0, 1.0],
+    "Head": [0.0, 0.0, 0.0, 1.0],
+
+    "RightShoulder": [0.0, 0.0, 0.0, 1.0],
+    "RightUpperArm": [0.0, 0.0, 0.0, 1.0],
+    "RightLowerArm": [0.0, 0.0, 0.0, 1.0],
+    "RightHand": [0.0, 0.0, 0.0, 1.0],
+
+    "LeftShoulder": [0.0, 0.0, 0.0, 1.0],
+    "LeftUpperArm": [0.0, 0.0, 0.0, 1.0],
+    "LeftLowerArm": [0.0, 0.0, 0.0, 1.0],
+    "LeftHand": [0.0, 0.0, 0.0, 1.0],
+
+    "RightUpperLeg": [0.0, 0.0, 0.0, 1.0],
+    "RightLowerLeg": [0.0, 0.0, 0.0, 1.0],
+    "RightFoot": [0.0, 0.0, 0.0, 1.0],
+
+    "LeftUpperLeg": [0.0, 0.0, 0.0, 1.0],
+    "LeftLowerLeg": [0.0, 0.0, 0.0, 1.0],
+    "LeftFoot": [0.0, 0.0, 0.0, 1.0]
+  }
+}
