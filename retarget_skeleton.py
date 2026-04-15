@@ -187,12 +187,12 @@ def fk_full(parents, local_pos, local_rot):
 
 def build_bone_mapping(config, src_names, tgt_names):
     """
-    Build (src_idx, tgt_idx, cumulative_weight) tuples from config.
+    Build (src_idx, tgt_idx, weight, is_chain) tuples from config.
 
-    For chain maps, weights are accumulated so that the last bone in the
-    chain carries the full source delta (weight=1.0).  This ensures the
-    world rotation at the chain's tip matches the source bone exactly,
-    while intermediate bones share the rotation proportionally.
+    Direct-mapped bones use world-space deltas (weight=1.0, is_chain=False).
+    Chain-mapped bones use local-space deltas with incremental weights so that
+    the rotation distributes smoothly along the chain without backwards
+    compensation artifacts.
     """
     si = {n: i for i, n in enumerate(src_names)}
     ti = {n: i for i, n in enumerate(tgt_names)}
@@ -200,7 +200,7 @@ def build_bone_mapping(config, src_names, tgt_names):
 
     for s, t in config.get("direct_map", {}).items():
         if s in si and t in ti:
-            mapping.append((si[s], ti[t], 1.0))
+            mapping.append((si[s], ti[t], 1.0, False))
         else:
             print(f"  [WARN] direct_map bone not found: {s} -> {t}")
 
@@ -211,11 +211,9 @@ def build_bone_mapping(config, src_names, tgt_names):
         weights = config.get("distribution_weights", {}).get(s)
         if weights is None:
             weights = [1.0 / len(tgt_list)] * len(tgt_list)
-        cum = 0.0
         for t, w in zip(tgt_list, weights):
-            cum += w
             if t in ti:
-                mapping.append((si[s], ti[t], cum))
+                mapping.append((si[s], ti[t], w, True))
             else:
                 print(f"  [WARN] chain_map target not found: {t}")
 
@@ -225,22 +223,21 @@ def build_bone_mapping(config, src_names, tgt_names):
 def retarget_frame(src_parents, src_bind_local, src_cur_local,
                    tgt_parents, tgt_bind_local, bone_mapping):
     """
-    Retarget one frame using aligned world-space rotation deltas.
+    Retarget one frame using world-space deltas (direct) or local-space
+    deltas (chain).
 
-    The source and target may have different root bind orientations (e.g.
-    source root = identity while target root has a large X rotation from
-    a Z-up model space).  A naive world-space delta would turn a source
-    yaw into a target tumble.
+    Direct-mapped bones (1:1): world-space delta conjugated by the root
+    alignment rotation, same as before.
 
-    Fix: conjugate each world-space delta by the root alignment rotation
-    so the delta is expressed in the target's reference frame.
+    Chain-mapped bones: use the source bone's LOCAL rotation delta
+    (change relative to its parent) with incremental weights.  This avoids
+    the artifact where cumulative fractions of the world delta include the
+    parent's rotation, causing the first chain bone to compensate backwards
+    and producing a twisted spine appearance.
 
-      align          = src_bw[root] * inv(tgt_bw[root])
-      conjugated_Δ   = inv(align) * Δ * align
-                      = tgt_bw[root] * inv(src_bw[root]) * Δ * src_bw[root] * inv(tgt_bw[root])
-      desired_world  = conjugated_Δ * tgt_bw[bone]
-
-    When src_bw[root] = identity this simplifies to conjugation by tgt_bw[root].
+    The local delta is conjugated from the source parent's world frame into
+    the target parent's world frame so it works even when the two skeletons
+    have different parent orientations.
     """
     n_tgt = len(tgt_parents)
 
@@ -248,14 +245,22 @@ def retarget_frame(src_parents, src_bind_local, src_cur_local,
     src_cw = fk_rotations(src_parents, src_cur_local)
     tgt_bw = fk_rotations(tgt_parents, tgt_bind_local)
 
-    # Root alignment: conjugate deltas so a source yaw stays a target yaw
+    # Root alignment: conjugate world-space deltas for direct-mapped bones
     align = quat_mul(src_bw[0], quat_inverse(tgt_bw[0]))
     inv_align = quat_inverse(align)
 
-    # Fast lookup: target bone index -> (source index, cumulative weight)
+    # Fast lookup: target bone index -> (source index, weight, is_chain)
     tgt_map = {}
-    for si, ti, w in bone_mapping:
-        tgt_map[ti] = (si, w)
+    for si, ti, w, is_chain in bone_mapping:
+        tgt_map[ti] = (si, w, is_chain)
+
+    # Pre-compute source local deltas for chain-mapped bones
+    src_local_delta_cache = {}
+    for si, ti, w, is_chain in bone_mapping:
+        if is_chain and si not in src_local_delta_cache:
+            src_local_delta_cache[si] = quat_mul(
+                quat_inverse(src_bind_local[si]), src_cur_local[si]
+            )
 
     tgt_cl = [r.copy() for r in tgt_bind_local]   # output local rotations
     tgt_cw = [None] * n_tgt                        # running world rotations
@@ -264,15 +269,32 @@ def retarget_frame(src_parents, src_bind_local, src_cur_local,
         p = tgt_parents[i]
 
         if i in tgt_map:
-            sidx, w = tgt_map[i]
-            delta = quat_mul(src_cw[sidx], quat_inverse(src_bw[sidx]))
-            if w < 1.0 - 1e-6:
-                delta = quat_pow(delta, w)
-            # Conjugate delta into target's reference frame
-            conj_delta = quat_mul(inv_align, quat_mul(delta, align))
-            desired = quat_mul(conj_delta, tgt_bw[i])
-            tgt_cw[i] = desired
-            tgt_cl[i] = desired if p == -1 else quat_mul(quat_inverse(tgt_cw[p]), desired)
+            sidx, w, is_chain = tgt_map[i]
+
+            if is_chain:
+                # Local-space delta: source bone's own rotation change
+                src_ld = src_local_delta_cache[sidx]
+
+                # Conjugate from source parent frame to target parent frame
+                src_parent_bw = src_bw[src_parents[sidx]] if src_parents[sidx] >= 0 else quat_identity()
+                tgt_parent_bw = tgt_bw[p] if p >= 0 else quat_identity()
+                frame_align = quat_mul(src_parent_bw, quat_inverse(tgt_parent_bw))
+                inv_frame_align = quat_inverse(frame_align)
+                local_delta = quat_mul(inv_frame_align, quat_mul(src_ld, frame_align))
+
+                # Apply incremental weight
+                if w < 1.0 - 1e-6:
+                    local_delta = quat_pow(local_delta, w)
+
+                tgt_cl[i] = quat_mul(tgt_bind_local[i], local_delta)
+                tgt_cw[i] = tgt_cl[i].copy() if p == -1 else quat_mul(tgt_cw[p], tgt_cl[i])
+            else:
+                # Direct mapping: world-space delta (unchanged logic)
+                delta = quat_mul(src_cw[sidx], quat_inverse(src_bw[sidx]))
+                conj_delta = quat_mul(inv_align, quat_mul(delta, align))
+                desired = quat_mul(conj_delta, tgt_bw[i])
+                tgt_cw[i] = desired
+                tgt_cl[i] = desired if p == -1 else quat_mul(quat_inverse(tgt_cw[p]), desired)
         else:
             tgt_cw[i] = tgt_cl[i].copy() if p == -1 else quat_mul(tgt_cw[p], tgt_cl[i])
 
@@ -325,8 +347,9 @@ def main():
     print(f"Source: {len(src_names)} bones  ({src_path})")
     print(f"Target: {len(tgt_names)} bones  ({config['target_skeleton']})")
     print(f"Mappings ({len(mapping)}):")
-    for si, ti, w in mapping:
-        print(f"  {src_names[si]:20s} -> {tgt_names[ti]:20s}  cum_w={w:.2f}")
+    for si, ti, w, is_chain in mapping:
+        kind = "chain" if is_chain else "direct"
+        print(f"  {src_names[si]:20s} -> {tgt_names[ti]:20s}  w={w:.2f} ({kind})")
 
     # Height ratio for root position scaling
     _, _ = fk_full(src_parents, src_bind_pos_u, src_bind_rot_u)
